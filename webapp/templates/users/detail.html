@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username }} — Users{% endblock %}
+{% block page_title %}User: {{ target.username }}{% endblock %}
+{% block page_subtitle %}Change role anytime · temporary & permanent permission grants{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <div class="card">
+    <h2 class="font-semibold mb-3">Profile</h2>
+    <dl class="text-sm space-y-2">
+      <div><dt class="text-slate-500">Email</dt><dd>{{ target.email }}</dd></div>
+      <div><dt class="text-slate-500">Active</dt><dd>{{ 'Yes' if target.is_active else 'No' }}</dd></div>
+      <div><dt class="text-slate-500">Current role</dt><dd class="font-medium">{{ target.role.name }}</dd></div>
+    </dl>
+    <form method="post" action="/users/{{ target.id }}/toggle-active" class="mt-4">
+      <button class="btn btn-secondary w-full" type="submit">{{ 'Deactivate' if target.is_active else 'Activate' }}</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold mb-3">Change role</h2>
+    <p class="text-xs text-slate-500 mb-3">Reassign anytime (e.g. Viewer → Accountant). Takes effect on the next request.</p>
+    <form method="post" action="/users/{{ target.id }}/role" class="space-y-3">
+      <select name="role_id" class="input">
+        {% for r in roles %}
+        <option value="{{ r.id }}" {% if target.role_id == r.id %}selected{% endif %}>{{ r.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary w-full" type="submit">Save role</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold mb-3">Reset password</h2>
+    <form method="post" action="/users/{{ target.id }}/password" class="space-y-3">
+      <input type="password" name="password" class="input" placeholder="New password" required />
+      <button class="btn btn-secondary w-full" type="submit">Update password</button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h2 class="font-semibold mb-1">Temporary / permanent permission override</h2>
+  <p class="text-xs text-slate-500 mb-4">Overrides beat the role. Leave dates empty for open-ended. Expiry is enforced automatically.</p>
+  <form method="post" action="/users/{{ target.id }}/overrides" class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+    <div class="md:col-span-2">
+      <label class="text-xs text-slate-600">Permission</label>
+      <select name="permission_id" class="input">
+        {% for p in permissions %}
+        <option value="{{ p.id }}">{{ p.category }} · {{ p.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-slate-600">Effect</label>
+      <select name="allowed" class="input">
+        <option value="grant">Grant</option>
+        <option value="deny">Deny</option>
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-slate-600">Starts</label>
+      <input type="datetime-local" name="starts_at" class="input" />
+    </div>
+    <div>
+      <label class="text-xs text-slate-600">Expires</label>
+      <input type="datetime-local" name="expires_at" class="input" />
+    </div>
+    <div>
+      <label class="text-xs text-slate-600">Reason</label>
+      <input name="reason" class="input" placeholder="Covering leave…" />
+    </div>
+    <button class="btn btn-primary" type="submit">Add grant</button>
+  </form>
+</div>
+
+<div class="card mb-6 table-wrap">
+  <h2 class="font-semibold mb-3">Active & expired overrides</h2>
+  <table class="data">
+    <thead><tr><th>Permission</th><th>Effect</th><th>Window</th><th>Reason</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for ov in overrides %}
+      {% set expired = ov.expires_at and ov.expires_at <= now %}
+      {% set future = ov.starts_at and ov.starts_at > now %}
+      <tr class="{% if expired %}opacity-50{% endif %}">
+        <td>{{ ov.permission.code }}</td>
+        <td>{{ 'Grant' if ov.allowed else 'Deny' }}</td>
+        <td class="text-xs">
+          {{ ov.starts_at or '—' }} →
+          {% if ov.expires_at %}
+            {{ ov.expires_at }}
+            <span class="ml-1 status-badge {% if expired %}status-On Hold{% else %}status-In Progress{% endif %}">
+              {% if expired %}Expired{% elif future %}Scheduled{% else %}Temporary{% endif %}
+            </span>
+          {% else %}
+            open-ended
+          {% endif %}
+        </td>
+        <td class="text-xs">{{ ov.reason }}</td>
+        <td>{% if expired %}Expired{% elif future %}Future{% else %}Active{% endif %}</td>
+        <td>
+          <form method="post" action="/users/{{ target.id }}/overrides/{{ ov.id }}/delete">
+            <button class="text-xs text-red-600" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-slate-500 text-sm py-4">No overrides.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card table-wrap">
+  <h2 class="font-semibold mb-3">Effective permissions</h2>
+  <table class="data">
+    <thead><tr><th>Category</th><th>Permission</th><th>Inherited</th><th>Override</th><th>Effective</th></tr></thead>
+    <tbody>
+      {% for row in perm_rows %}
+      <tr>
+        <td class="text-xs text-slate-500">{{ row.permission.category }}</td>
+        <td><div class="font-medium">{{ row.permission.code }}</div><div class="text-xs text-slate-500">{{ row.permission.name }}</div></td>
+        <td>{{ 'Yes' if row.inherited else 'No' }}</td>
+        <td>
+          {% if row.status in ['Granted','Denied'] %}
+          <span class="status-badge {% if row.status=='Granted' %}status-Completed{% else %}status-Needs Review{% endif %}">
+            {{ row.status }}{% if row.temporary %} · temp{% endif %}
+          </span>
+          {% else %}—
+          {% endif %}
+        </td>
+        <td>{% if row.effective %}<span class="text-emerald-600 font-semibold">Yes</span>{% else %}<span class="text-slate-400">No</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

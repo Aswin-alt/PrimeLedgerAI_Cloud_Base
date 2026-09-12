@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Roles & Permissions — {{ app_name }}{% endblock %}
+{% block page_title %}Roles & Permissions{% endblock %}
+{% block page_subtitle %}Toggle any privilege anytime — changes apply on the next request{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+  <div class="card lg:col-span-2">
+    <h2 class="font-semibold mb-3">Roles</h2>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Name</th><th>Description</th><th>System</th><th></th></tr></thead>
+        <tbody>
+          {% for r in roles %}
+          <tr>
+            <td class="font-medium">{{ r.name }}</td>
+            <td class="text-sm text-slate-600">{{ r.description }}</td>
+            <td>{{ 'Yes' if r.is_system else 'No' }}</td>
+            <td class="space-x-2 whitespace-nowrap">
+              <details class="inline">
+                <summary class="text-xs text-brand-600 cursor-pointer">Edit</summary>
+                <form method="post" action="/permissions/roles/{{ r.id }}/rename" class="mt-2 space-y-2">
+                  <input name="name" class="input" value="{{ r.name }}" {% if r.is_system and r.name=='Admin' %}readonly{% endif %} />
+                  <input name="description" class="input" value="{{ r.description }}" />
+                  <button class="btn btn-secondary text-xs" type="submit">Save</button>
+                </form>
+              </details>
+              {% if not r.is_system %}
+              <form method="post" action="/permissions/roles/{{ r.id }}/delete" class="inline" onsubmit="return confirm('Delete role?')">
+                <button class="text-xs text-red-600" type="submit">Delete</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h2 class="font-semibold mb-3">Create custom role</h2>
+    <form method="post" action="/permissions/roles/create" class="space-y-3">
+      <div><label class="text-xs text-slate-600">Name</label><input name="name" class="input" required /></div>
+      <div><label class="text-xs text-slate-600">Description</label><input name="description" class="input" /></div>
+      <button class="btn btn-primary w-full" type="submit">Create role</button>
+    </form>
+  </div>
+</div>
+
+<div class="card table-wrap">
+  <h2 class="font-semibold mb-1">Permission matrix</h2>
+  <p class="text-xs text-slate-500 mb-4">Click a checkbox to grant or revoke. HTMX updates instantly.</p>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Permission</th>
+        {% for r in roles %}<th class="text-center">{{ r.name }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% set ns = namespace(last='') %}
+      {% for p in permissions %}
+      {% if p.category != ns.last %}
+      <tr><td colspan="{{ roles|length + 1 }}" class="bg-slate-50 font-semibold text-slate-600 text-xs uppercase tracking-wide">{{ p.category }}</td></tr>
+      {% set ns.last = p.category %}
+      {% endif %}
+      <tr>
+        <td>
+          <div class="font-medium text-sm">{{ p.code }}</div>
+          <div class="text-xs text-slate-500">{{ p.name }}</div>
+        </td>
+        {% for r in roles %}
+        <td class="text-center">
+          <input type="checkbox"
+            {% if grants.get((r.id, p.id)) %}checked{% endif %}
+            hx-post="/permissions/toggle"
+            hx-vals='{"role_id": {{ r.id }}, "permission_id": {{ p.id }}}'
+            hx-swap="outerHTML"
+            class="h-4 w-4 rounded border-slate-300 text-brand-600" />
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — {{ app_name }}{% endblock %}
+{% block page_title %}Audit Log / Activity History{% endblock %}
+{% block page_subtitle %}Every login, upload, convert, and permission change{% endblock %}
+{% block content %}
+<form method="get" class="card mb-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+  <div>
+    <label class="text-xs text-slate-600">Action</label>
+    <input name="action" class="input" list="actions" value="{{ filters.action }}" />
+    <datalist id="actions">{% for a in actions %}<option value="{{ a }}"></option>{% endfor %}</datalist>
+  </div>
+  <div>
+    <label class="text-xs text-slate-600">Entity type</label>
+    <input name="entity_type" class="input" value="{{ filters.entity_type }}" />
+  </div>
+  {% if users %}
+  <div>
+    <label class="text-xs text-slate-600">User</label>
+    <select name="user_id" class="input">
+      <option value="">All</option>
+      {% for u in users %}<option value="{{ u.id }}" {% if filters.user_id == u.id|string %}selected{% endif %}>{{ u.username }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div>
+    <label class="text-xs text-slate-600">From</label>
+    <input type="date" name="date_from" class="input" value="{{ filters.date_from }}" />
+  </div>
+  <div>
+    <label class="text-xs text-slate-600">To</label>
+    <input type="date" name="date_to" class="input" value="{{ filters.date_to }}" />
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-secondary" type="submit">Filter</button>
+    {% if can('audit.export') %}
+    <a href="/audit/export" class="btn btn-primary">Export</a>
+    {% endif %}
+  </div>
+</form>
+
+<div class="card table-wrap">
+  <table class="data">
+    <thead>
+      <tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>Detail</th><th>IP</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="text-xs whitespace-nowrap">{{ r.created_at }}</td>
+        <td>{{ r.user.username if r.user else 'system' }}</td>
+        <td><span class="font-medium">{{ r.action }}</span></td>
+        <td class="text-xs">{{ r.entity_type }} {% if r.entity_id %}#{{ r.entity_id }}{% endif %}</td>
+        <td class="text-xs max-w-md truncate" title="{{ r.detail }}">{{ r.detail }}</td>
+        <td class="text-xs">{{ r.ip_address }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-slate-500 py-8">No activity.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="flex justify-between text-sm text-slate-500 mt-3">
+    <span>{{ filters.total }} events</span>
+    <div class="space-x-2">
+      {% if filters.page > 1 %}<a class="text-brand-600" href="?page={{ filters.page-1 }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&user_id={{ filters.user_id }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}">Prev</a>{% endif %}
+      <span>Page {{ filters.page }} / {{ filters.pages }}</span>
+      {% if filters.page < filters.pages %}<a class="text-brand-600" href="?page={{ filters.page+1 }}&action={{ filters.action }}&entity_type={{ filters.entity_type }}&user_id={{ filters.user_id }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}">Next</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

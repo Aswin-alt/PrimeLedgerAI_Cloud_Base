@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ tool.name }} — {{ app_name }}{% endblock %}
+{% block page_title %}{{ tool.name }}{% endblock %}
+{% block page_subtitle %}Convert source files to QuickBooks journals{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="card">
+    <h2 class="font-semibold text-slate-800 mb-4">Run conversion</h2>
+    <form method="post" action="/converters/{{ tool_key }}/run" enctype="multipart/form-data" class="space-y-4">
+      <div class="dropzone">
+        <p class="text-sm text-slate-600 mb-2">Select input file ({{ tool.accept }})</p>
+        <input type="file" name="file" accept="{{ tool.accept }}" required class="mx-auto" />
+      </div>
+      {% if tool_key == 'hotel_revenue' %}
+      <div>
+        <label class="text-xs font-medium text-slate-600">QuickBooks location</label>
+        <input name="location" class="input" value="Marietta Hotel" />
+      </div>
+      {% endif %}
+      {% if tool_key == 'daily_remittance' %}
+      <div>
+        <label class="text-xs font-medium text-slate-600">Optional mapping workbook (.xlsx)</label>
+        <input type="file" name="mapping" accept=".xlsx" class="input" />
+      </div>
+      {% endif %}
+      <button class="btn btn-primary" type="submit">Create journal</button>
+    </form>
+
+    {% if result %}
+    <div class="mt-6 rounded-lg border {% if result.success %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-red-200 bg-red-50 text-red-800{% endif %} px-4 py-3 text-sm">
+      {{ result.message }}
+      {% if result.success and result.output_path %}
+      <div class="mt-2">
+        <a class="btn btn-secondary text-xs" href="/converters/jobs/{{ recent[0].id if recent else 0 }}/download">Download output</a>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold text-slate-800 mb-3">Recent jobs</h2>
+    <table class="data">
+      <thead><tr><th>When</th><th>Status</th><th>Message</th><th></th></tr></thead>
+      <tbody>
+        {% for j in recent %}
+        <tr>
+          <td class="text-xs">{{ j.created_at }}</td>
+          <td>{{ j.status }}</td>
+          <td class="text-xs max-w-xs truncate">{{ j.message }}</td>
+          <td>
+            {% if j.status == 'completed' and j.output_path %}
+            <a class="text-brand-600 text-xs" href="/converters/jobs/{{ j.id }}/download">Download</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-slate-500 text-sm py-4">No jobs yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

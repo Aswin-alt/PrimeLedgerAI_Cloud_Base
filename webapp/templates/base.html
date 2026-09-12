@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#eff6ff',100:'#dbeafe',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',900:'#0f172a' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="h-full" x-data="{ sidebarOpen: true, toast: '' }"
+      @toast.window="toast = $event.detail; setTimeout(() => toast='', 3500)">
+{% if user %}
+<div class="min-h-full flex">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-slate-900 text-slate-100 flex-shrink-0 hidden md:flex md:flex-col">
+    <div class="px-5 py-5 border-b border-slate-700">
+      <div class="text-lg font-bold tracking-tight">PrimeLedgerAI</div>
+      <div class="text-xs text-slate-400">Cloud Accounting Platform</div>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+      <a href="/records" class="nav-link {% if request.url.path.startswith('/records') %}active{% endif %}">Records</a>
+      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Converters</div>
+      <a href="/converters/daily_sales" class="nav-link">Daily Sales</a>
+      <a href="/converters/daily_remittance" class="nav-link">Daily Remittance</a>
+      <a href="/converters/payroll" class="nav-link">Payroll</a>
+      <a href="/converters/invoice" class="nav-link">Denny's Invoice</a>
+      <a href="/converters/hotel_revenue" class="nav-link">Hotel Revenue</a>
+      <a href="/converters/sales_tax" class="nav-link">Sales Tax</a>
+      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Activity</div>
+      <a href="/audit" class="nav-link {% if request.url.path.startswith('/audit') %}active{% endif %}">Audit Log / History</a>
+      {% if can('users.manage') or can('roles.manage') or can('settings.manage') %}
+      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Admin</div>
+      {% if can('users.manage') %}
+      <a href="/users" class="nav-link {% if request.url.path.startswith('/users') %}active{% endif %}">Users</a>
+      {% endif %}
+      {% if can('roles.manage') %}
+      <a href="/permissions" class="nav-link {% if request.url.path.startswith('/permissions') %}active{% endif %}">Roles & Permissions</a>
+      {% endif %}
+      {% if can('settings.manage') %}
+      <a href="/settings/locations" class="nav-link {% if request.url.path.startswith('/settings/locations') %}active{% endif %}">Settings</a>
+      <a href="/settings/tokens" class="nav-link {% if request.url.path.startswith('/settings/tokens') %}active{% endif %}">API Tokens</a>
+      {% endif %}
+      {% endif %}
+    </nav>
+    <div class="px-4 py-4 border-t border-slate-700 text-xs text-slate-400">
+      v{{ app_version }}
+    </div>
+  </aside>
+
+  <div class="flex-1 flex flex-col min-w-0">
+    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-semibold text-slate-900">{% block page_title %}Dashboard{% endblock %}</h1>
+        <p class="text-xs text-slate-500">{% block page_subtitle %}{% endblock %}</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="inline-flex items-center rounded-full bg-brand-100 text-brand-700 px-3 py-1 text-xs font-medium">
+          {{ user.role.name }}
+        </span>
+        <div class="text-right">
+          <div class="text-sm font-medium text-slate-800">{{ user.username }}</div>
+          <div class="text-xs text-slate-500">{{ user.email }}</div>
+        </div>
+        <a href="/logout" class="text-sm text-slate-600 hover:text-brand-600">Logout</a>
+      </div>
+    </header>
+    <main class="flex-1 p-6 overflow-auto">
+      {% if flash %}
+      <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">{{ flash }}</div>
+      {% endif %}
+      {% if error %}
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm">{{ error }}</div>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
+
+<div x-show="toast" x-transition class="fixed bottom-4 right-4 z-50 rounded-lg bg-slate-900 text-white px-4 py-3 shadow-lg text-sm" x-text="toast"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

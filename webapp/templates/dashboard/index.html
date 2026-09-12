@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}Denny's & Hotel accounting overview{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
+  {% for wt in work_types %}
+  <div class="card">
+    <div class="text-xs font-medium text-slate-500 truncate" title="{{ wt }}">{{ wt }}</div>
+    <div class="text-3xl font-bold text-slate-900 mt-1">{{ counts[wt] }}</div>
+    <div class="text-xs text-slate-400 mt-1">files this month</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+  <div class="card xl:col-span-2">
+    <h2 class="font-semibold text-slate-800 mb-3">Files uploaded (6 months)</h2>
+    <canvas id="filesChart" height="100"></canvas>
+  </div>
+  <div class="card">
+    <h2 class="font-semibold text-slate-800 mb-3">By status</h2>
+    <canvas id="statusChart" height="180"></canvas>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="card lg:col-span-1">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">Recent files</h2>
+      <a href="/records" class="text-xs text-brand-600">View all</a>
+    </div>
+    <ul class="divide-y divide-slate-100">
+      {% for r in recent %}
+      <li class="py-2">
+        <div class="text-sm font-medium text-slate-800 truncate">{{ r.file_name }}</div>
+        <div class="text-xs text-slate-500">{{ r.work_type }} · {{ r.location_name }}</div>
+        <span class="status-badge status-{{ r.status }}">{{ r.status }}</span>
+      </li>
+      {% else %}
+      <li class="text-sm text-slate-500 py-4">No files yet. Upload from Records.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2 class="font-semibold text-slate-800 mb-3">Needs attention</h2>
+    <ul class="divide-y divide-slate-100">
+      {% for r in needs_review %}
+      <li class="py-2">
+        <div class="text-sm font-medium text-slate-800 truncate">{{ r.file_name }}</div>
+        <div class="text-xs text-slate-500">Discrepancy: {{ r.discrepancy }}</div>
+        <span class="status-badge status-{{ r.status }}">{{ r.status }}</span>
+      </li>
+      {% else %}
+      <li class="text-sm text-slate-500 py-4">Nothing flagged.</li>
+      {% endfor %}
+    </ul>
+    <h2 class="font-semibold text-slate-800 mt-6 mb-3">Top locations</h2>
+    <ul class="space-y-2">
+      {% for name, cnt in top_locations %}
+      <li class="flex justify-between text-sm"><span>{{ name }}</span><span class="font-semibold">{{ cnt }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-slate-800">Activity</h2>
+      <a href="/audit" class="text-xs text-brand-600">Full history</a>
+    </div>
+    <ul class="divide-y divide-slate-100 max-h-96 overflow-auto">
+      {% for a in activity %}
+      <li class="py-2">
+        <div class="text-sm text-slate-800">
+          <span class="font-medium">{{ a.user.username if a.user else 'system' }}</span>
+          <span class="text-slate-500">{{ a.action }}</span>
+        </div>
+        <div class="text-xs text-slate-400 truncate">{{ a.detail }}</div>
+        <div class="text-xs text-slate-400">{{ a.created_at }}</div>
+      </li>
+      {% else %}
+      <li class="text-sm text-slate-500 py-4">No activity yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  const labels = {{ chart_labels | tojson }};
+  const values = {{ chart_values | tojson }};
+  const statusLabels = {{ status_counts.keys() | list | tojson }};
+  const statusValues = {{ status_counts.values() | list | tojson }};
+  new Chart(document.getElementById('filesChart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Files', data: values, backgroundColor: '#2563eb' }] },
+    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: ['#6366f1','#f59e0b','#10b981','#ef4444','#94a3b8','#06b6d4'] }] },
+    options: { plugins: { legend: { position: 'bottom' } } }
+  });
+</script>
+{% endblock %}

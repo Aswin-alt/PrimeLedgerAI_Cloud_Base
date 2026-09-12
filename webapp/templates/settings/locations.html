@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ app_name }}{% endblock %}
+{% block page_title %}Settings{% endblock %}
+{% block page_subtitle %}Locations and chart-of-accounts mapping{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+  <div class="space-y-4">
+    <div class="card">
+      <h2 class="font-semibold mb-3">Add location</h2>
+      <form method="post" action="/settings/locations/create" class="grid grid-cols-2 gap-3">
+        <div><label class="text-xs text-slate-600">Code</label><input name="code" class="input" required /></div>
+        <div><label class="text-xs text-slate-600">Name</label><input name="name" class="input" required /></div>
+        <div class="col-span-2"><label class="text-xs text-slate-600">Cash account</label><input name="cash_account" class="input" /></div>
+        <div class="col-span-2"><label class="text-xs text-slate-600">Bank account</label><input name="bank_account" class="input" /></div>
+        <button class="btn btn-primary col-span-2" type="submit">Add</button>
+      </form>
+    </div>
+    <div class="card table-wrap">
+      <h2 class="font-semibold mb-3">Locations</h2>
+      <table class="data">
+        <thead><tr><th>Code</th><th>Name</th><th>Cash</th><th>Bank</th><th></th></tr></thead>
+        <tbody>
+          {% for loc in locations %}
+          <tr>
+            <td>{{ loc.code }}</td>
+            <td colspan="4">
+              <form method="post" action="/settings/locations/{{ loc.id }}/update" class="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                <input name="name" class="input" value="{{ loc.name }}" />
+                <input name="cash_account" class="input" value="{{ loc.cash_account }}" />
+                <input name="bank_account" class="input" value="{{ loc.bank_account }}" />
+                <div class="flex gap-2 items-center">
+                  <label class="text-xs"><input type="checkbox" name="is_active" value="1" {% if loc.is_active %}checked{% endif %} /> Active</label>
+                  <button class="btn btn-secondary text-xs" type="submit">Save</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="card">
+      <h2 class="font-semibold mb-3">Add COA mapping rule</h2>
+      <form method="post" action="/settings/coa/create" class="space-y-3">
+        <div><label class="text-xs text-slate-600">Source description contains</label><input name="source_contains" class="input" required /></div>
+        <div><label class="text-xs text-slate-600">Account</label><input name="account" class="input" required /></div>
+        <div><label class="text-xs text-slate-600">Output description</label><input name="output_description" class="input" /></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-slate-600">Entry type</label>
+            <select name="entry_type" class="input"><option>DEBIT</option><option>CREDIT</option></select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-600">Tool scope</label>
+            <input name="tool_scope" class="input" value="remittance" />
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit">Add rule</button>
+      </form>
+    </div>
+    <div class="card table-wrap">
+      <h2 class="font-semibold mb-3">Chart of accounts rules</h2>
+      <table class="data">
+        <thead><tr><th>Contains</th><th>Account</th><th>Type</th><th>Scope</th><th></th></tr></thead>
+        <tbody>
+          {% for rule in rules %}
+          <tr>
+            <td>{{ rule.source_contains }}</td>
+            <td class="text-xs">{{ rule.account }}</td>
+            <td>{{ rule.entry_type }}</td>
+            <td>{{ rule.tool_scope }}</td>
+            <td>
+              <form method="post" action="/settings/coa/{{ rule.id }}/delete" onsubmit="return confirm('Delete rule?')">
+                <button class="text-xs text-red-600" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="text-slate-500 text-sm py-4">No rules.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

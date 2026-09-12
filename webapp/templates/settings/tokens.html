@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}API Tokens — {{ app_name }}{% endblock %}
+{% block page_title %}API Tokens{% endblock %}
+{% block page_subtitle %}Optional tokens for future QuickBooks Online / automation integrations{% endblock %}
+{% block content %}
+{% if new_token %}
+<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-sm">
+  <strong>New token (copy once):</strong>
+  <code class="block mt-2 break-all bg-white border rounded p-2">{{ new_token }}</code>
+</div>
+{% endif %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="card lg:col-span-2 table-wrap">
+    <table class="data">
+      <thead><tr><th>Name</th><th>Created</th><th>Last used</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+        {% for t in tokens %}
+        <tr>
+          <td>{{ t.name }}</td>
+          <td class="text-xs">{{ t.created_at }}</td>
+          <td class="text-xs">{{ t.last_used_at or '—' }}</td>
+          <td>{{ 'Yes' if t.is_active else 'No' }}</td>
+          <td>
+            {% if t.is_active %}
+            <form method="post" action="/settings/tokens/{{ t.id }}/revoke">
+              <button class="text-xs text-red-600" type="submit">Revoke</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-slate-500 text-sm py-4">No tokens yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h2 class="font-semibold mb-3">Create token</h2>
+    <form method="post" action="/settings/tokens/create" class="space-y-3">
+      <div><label class="text-xs text-slate-600">Name</label><input name="name" class="input" placeholder="QBO sync" required /></div>
+      <button class="btn btn-primary w-full" type="submit">Generate</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
