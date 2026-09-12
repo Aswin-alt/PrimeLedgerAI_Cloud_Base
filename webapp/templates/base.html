@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-50">
+<html lang="en" class="h-full" data-theme="day">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/img/primeledger-logo.png" />
+  <script src="/static/js/theme.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
@@ -14,37 +16,43 @@
       theme: {
         extend: {
           colors: {
-            brand: { 50:'#eff6ff',100:'#dbeafe',500:'#2563eb',600:'#1d4ed8',700:'#1e40af',900:'#0f172a' }
+            navy: { DEFAULT: '#0b1f3a', soft: '#143056' },
+            gold: { DEFAULT: '#e8a317', soft: '#f5c85a' },
+            brand: { 50:'#fff8e8',100:'#fdecc0',500:'#e8a317',600:'#d4920f',700:'#0b1f3a',900:'#07101c' }
           }
         }
       }
     }
   </script>
 </head>
-<body class="h-full" x-data="{ sidebarOpen: true, toast: '' }"
+<body class="h-full theme-bg" x-data="{ toast: '', theme: (window.PLATheme && PLATheme.get()) || 'day' }"
+      x-init="window.addEventListener('pla-theme', e => theme = e.detail)"
       @toast.window="toast = $event.detail; setTimeout(() => toast='', 3500)">
 {% if user %}
 <div class="min-h-full flex">
   <!-- Sidebar -->
-  <aside class="w-64 bg-slate-900 text-slate-100 flex-shrink-0 hidden md:flex md:flex-col">
-    <div class="px-5 py-5 border-b border-slate-700">
-      <div class="text-lg font-bold tracking-tight">PrimeLedgerAI</div>
-      <div class="text-xs text-slate-400">Cloud Accounting Platform</div>
+  <aside class="w-64 theme-sidebar flex-shrink-0 hidden md:flex md:flex-col border-r theme-border">
+    <div class="px-4 py-4 border-b theme-border flex items-center gap-3">
+      <img src="/static/img/primeledger-logo.png" alt="PrimeLedgerAI" class="brand-logo" />
+      <div class="min-w-0">
+        <div class="brand-wordmark text-sm truncate">PrimeLedgerAI</div>
+        <div class="brand-tagline truncate">Cloud Accounting</div>
+      </div>
     </div>
-    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm overflow-y-auto">
       <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
       <a href="/records" class="nav-link {% if request.url.path.startswith('/records') %}active{% endif %}">Records</a>
-      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Converters</div>
-      <a href="/converters/daily_sales" class="nav-link">Daily Sales</a>
-      <a href="/converters/daily_remittance" class="nav-link">Daily Remittance</a>
-      <a href="/converters/payroll" class="nav-link">Payroll</a>
-      <a href="/converters/invoice" class="nav-link">Denny's Invoice</a>
-      <a href="/converters/hotel_revenue" class="nav-link">Hotel Revenue</a>
-      <a href="/converters/sales_tax" class="nav-link">Sales Tax</a>
-      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Activity</div>
+      <div class="sidebar-section">Converters</div>
+      <a href="/converters/daily_sales" class="nav-link {% if request.url.path == '/converters/daily_sales' %}active{% endif %}">Daily Sales</a>
+      <a href="/converters/daily_remittance" class="nav-link {% if request.url.path == '/converters/daily_remittance' %}active{% endif %}">Daily Remittance</a>
+      <a href="/converters/payroll" class="nav-link {% if request.url.path == '/converters/payroll' %}active{% endif %}">Payroll</a>
+      <a href="/converters/invoice" class="nav-link {% if request.url.path == '/converters/invoice' %}active{% endif %}">Denny's Invoice</a>
+      <a href="/converters/hotel_revenue" class="nav-link {% if request.url.path == '/converters/hotel_revenue' %}active{% endif %}">Hotel Revenue</a>
+      <a href="/converters/sales_tax" class="nav-link {% if request.url.path == '/converters/sales_tax' %}active{% endif %}">Sales Tax</a>
+      <div class="sidebar-section">Activity</div>
       <a href="/audit" class="nav-link {% if request.url.path.startswith('/audit') %}active{% endif %}">Audit Log / History</a>
       {% if can('users.manage') or can('roles.manage') or can('settings.manage') %}
-      <div class="pt-3 pb-1 px-3 text-xs uppercase tracking-wider text-slate-500">Admin</div>
+      <div class="sidebar-section">Admin</div>
       {% if can('users.manage') %}
       <a href="/users" class="nav-link {% if request.url.path.startswith('/users') %}active{% endif %}">Users</a>
       {% endif %}
@@ -57,34 +65,41 @@
       {% endif %}
       {% endif %}
     </nav>
-    <div class="px-4 py-4 border-t border-slate-700 text-xs text-slate-400">
+    <div class="px-4 py-4 border-t theme-border text-xs" style="color: var(--sidebar-muted)">
       v{{ app_version }}
     </div>
   </aside>
 
   <div class="flex-1 flex flex-col min-w-0">
-    <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
-      <div>
-        <h1 class="text-lg font-semibold text-slate-900">{% block page_title %}Dashboard{% endblock %}</h1>
-        <p class="text-xs text-slate-500">{% block page_subtitle %}{% endblock %}</p>
-      </div>
-      <div class="flex items-center gap-4">
-        <span class="inline-flex items-center rounded-full bg-brand-100 text-brand-700 px-3 py-1 text-xs font-medium">
-          {{ user.role.name }}
-        </span>
-        <div class="text-right">
-          <div class="text-sm font-medium text-slate-800">{{ user.username }}</div>
-          <div class="text-xs text-slate-500">{{ user.email }}</div>
+    <header class="theme-header border-b px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <img src="/static/img/primeledger-logo.png" alt="" class="brand-logo md:hidden" />
+        <div class="min-w-0">
+          <h1 class="text-lg font-semibold truncate" style="color: var(--text)">{% block page_title %}Dashboard{% endblock %}</h1>
+          <p class="text-xs truncate theme-muted">{% block page_subtitle %}{% endblock %}</p>
         </div>
-        <a href="/logout" class="text-sm text-slate-600 hover:text-brand-600">Logout</a>
+      </div>
+      <div class="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+        <button type="button" class="btn btn-theme" title="Toggle day / night mode"
+                @click="PLATheme.toggle(); theme = PLATheme.get()"
+                :aria-label="theme === 'night' ? 'Switch to day mode' : 'Switch to night mode'">
+          <span x-show="theme !== 'night'" aria-hidden="true">☾</span>
+          <span x-show="theme === 'night'" aria-hidden="true">☀</span>
+        </button>
+        <span class="role-badge hidden sm:inline-flex">{{ user.role.name }}</span>
+        <div class="text-right hidden sm:block">
+          <div class="text-sm font-medium" style="color: var(--text)">{{ user.username }}</div>
+          <div class="text-xs theme-muted">{{ user.email }}</div>
+        </div>
+        <a href="/logout" class="text-sm theme-muted hover:opacity-80" style="color: var(--gold)">Logout</a>
       </div>
     </header>
-    <main class="flex-1 p-6 overflow-auto">
+    <main class="flex-1 p-4 sm:p-6 overflow-auto">
       {% if flash %}
-      <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 px-4 py-3 text-sm">{{ flash }}</div>
+      <div class="mb-4 rounded-lg flash-ok px-4 py-3 text-sm">{{ flash }}</div>
       {% endif %}
       {% if error %}
-      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm">{{ error }}</div>
+      <div class="mb-4 rounded-lg flash-err px-4 py-3 text-sm">{{ error }}</div>
       {% endif %}
       {% block content %}{% endblock %}
     </main>
@@ -94,7 +109,7 @@
   {% block public %}{% endblock %}
 {% endif %}
 
-<div x-show="toast" x-transition class="fixed bottom-4 right-4 z-50 rounded-lg bg-slate-900 text-white px-4 py-3 shadow-lg text-sm" x-text="toast"></div>
+<div x-show="toast" x-transition class="fixed bottom-4 right-4 z-50 rounded-lg app-toast px-4 py-3 shadow-lg text-sm" x-text="toast"></div>
 {% block scripts %}{% endblock %}
 </body>
 </html>
