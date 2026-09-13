@@ -18,23 +18,30 @@
     <div class="card table-wrap">
       <h2 class="font-semibold mb-3">Locations</h2>
       <table class="data">
-        <thead><tr><th>Code</th><th>Name</th><th>Cash</th><th>Bank</th><th></th></tr></thead>
+        <thead><tr><th>Code</th><th>Details</th><th></th></tr></thead>
         <tbody>
           {% for loc in locations %}
           <tr>
-            <td>{{ loc.code }}</td>
-            <td colspan="4">
+            <td class="align-top pt-3 font-medium">{{ loc.code }}</td>
+            <td>
               <form method="post" action="/settings/locations/{{ loc.id }}/update" class="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
                 <input name="name" class="input" value="{{ loc.name }}" />
-                <input name="cash_account" class="input" value="{{ loc.cash_account }}" />
-                <input name="bank_account" class="input" value="{{ loc.bank_account }}" />
+                <input name="cash_account" class="input" value="{{ loc.cash_account }}" placeholder="Cash account" />
+                <input name="bank_account" class="input" value="{{ loc.bank_account }}" placeholder="Bank account" />
                 <div class="flex gap-2 items-center">
                   <label class="text-xs"><input type="checkbox" name="is_active" value="1" {% if loc.is_active %}checked{% endif %} /> Active</label>
                   <button class="btn btn-secondary text-xs" type="submit">Save</button>
                 </div>
               </form>
             </td>
+            <td class="align-top pt-2">
+              <form method="post" action="/settings/locations/{{ loc.id }}/delete" onsubmit="return confirm('Delete location {{ loc.code }}? Existing records keep their location name.')">
+                <button class="text-xs text-red-600" type="submit">Delete</button>
+              </form>
+            </td>
           </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-slate-500 text-sm py-4">No locations.</td></tr>
           {% endfor %}
         </tbody>
       </table>
