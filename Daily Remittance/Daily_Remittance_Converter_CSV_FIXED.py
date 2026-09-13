@@ -52,8 +52,8 @@ LOCATIONS = {
     "245169": "5169-Columbus OH",
     "247401": "7401-Youngstown",
     "248829": "8829",
-    "249690": "9690",
-    "249697": "9697",
+    "249690": "9690-Marietta Rest",
+    "249697": "9697-Findley",
 }
 
 FEE_ACCOUNT = "Commissions & fees  *:Credit Card Fee"

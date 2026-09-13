@@ -12,7 +12,7 @@
         <tr>
           <td class="font-medium">{{ u.username }}</td>
           <td>{{ u.email }}</td>
-          <td><span class="inline-flex rounded-full bg-brand-100 text-brand-700 px-2 py-0.5 text-xs">{{ u.role.name }}</span></td>
+          <td><span class="role-badge">{{ u.role.name }}</span></td>
           <td>{{ 'Yes' if u.is_active else 'No' }}</td>
           <td class="text-xs">{{ u.last_login or '—' }}</td>
           <td><a class="text-brand-600 text-sm" href="/users/{{ u.id }}">Manage</a></td>

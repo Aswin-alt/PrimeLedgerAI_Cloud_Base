@@ -52,6 +52,72 @@ def run_daily_sales(input_path: Path, output_path: Optional[Path] = None) -> Con
         return ConversionResult(False, message=str(exc))
 
 
+class _SuffixMap(dict):
+    """Dict whose lookups also match when the key and a stored key share a
+    suffix. The remittance file uses full unit numbers (e.g. ``249690``) while
+    the Settings → Locations table stores short codes (e.g. ``9690``)."""
+
+    def _resolve(self, key):
+        if dict.__contains__(self, key):
+            return dict.__getitem__(self, key)
+        key = str(key)
+        for stored in self:
+            s = str(stored)
+            if s and (key.endswith(s) or s.endswith(key)):
+                return dict.__getitem__(self, stored)
+        return None
+
+    def get(self, key, default=None):
+        value = self._resolve(key)
+        return default if value is None else value
+
+    def __contains__(self, key):
+        return self._resolve(key) is not None
+
+
+def _remittance_mapping_from_settings(mod: ModuleType):
+    """Build (locations, banks, coa_rules) from the Settings tables, falling
+    back to the legacy script defaults for any category left unconfigured."""
+    from webapp.database import SessionLocal
+    from webapp.models import ChartOfAccountRule, Location
+
+    locations = _SuffixMap()
+    banks = _SuffixMap()
+    coa_rules: list[tuple] = []
+
+    db = SessionLocal()
+    try:
+        for loc in db.query(Location).filter_by(is_active=True).all():
+            code = (loc.code or "").strip()
+            if not code:
+                continue
+            locations[code] = (loc.name or code).strip()
+            bank = (loc.bank_account or "").strip()
+            if bank:
+                banks[code] = bank
+        coa_rules = [
+            (
+                rule.source_contains,
+                rule.account,
+                rule.output_description or rule.source_contains,
+                rule.entry_type,
+            )
+            for rule in db.query(ChartOfAccountRule)
+            .filter_by(tool_scope="remittance")
+            .all()
+        ]
+    finally:
+        db.close()
+
+    if not locations:
+        locations = _SuffixMap(mod.LOCATIONS)
+    if not banks:
+        banks = _SuffixMap(mod.BANK_ACCOUNTS)
+    if not coa_rules:
+        coa_rules = list(mod.DEFAULT_COA_RULES)
+    return locations, banks, coa_rules
+
+
 def run_daily_remittance(
     input_path: Path,
     output_path: Optional[Path] = None,
@@ -61,16 +127,30 @@ def run_daily_remittance(
     out = output_path or (OUTPUT_DIR / f"{input_path.stem}_QuickBooks_Journal.csv")
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
-        units, rows, debits, credits, warnings = mod.convert_file(
-            str(input_path),
-            str(out),
-            str(mapping_path) if mapping_path else None,
-        )
+        # An uploaded mapping workbook still takes precedence; otherwise the
+        # mapping is driven by the editable Settings → Locations / COA tables.
+        if mapping_path:
+            locations, banks, coa_rules = mod.load_mapping(str(mapping_path))
+        else:
+            locations, banks, coa_rules = _remittance_mapping_from_settings(mod)
+
+        groups = mod.read_remittance(str(input_path))
+        rows, warnings = mod.build_journal(groups, locations, banks, coa_rules)
+        mod.write_csv(rows, str(out))
+
+        debits = sum(float(row[3] or 0) for row in rows)
+        credits = sum(float(row[4] or 0) for row in rows)
+        if abs(debits - credits) > 0.01:
+            warnings.append(
+                f"Journal is not balanced: debits {debits:.2f}, credits {credits:.2f}."
+            )
+        units, row_count = len(groups), len(rows)
+
         disc = abs(float(debits) - float(credits))
-        msg = f"Units={units} rows={rows} debits={debits:.2f} credits={credits:.2f}"
+        msg = f"Units={units} rows={row_count} debits={debits:.2f} credits={credits:.2f}"
         if warnings:
             msg += " | " + "; ".join(warnings[:5])
-        return ConversionResult(True, str(out), msg, units, rows, disc)
+        return ConversionResult(True, str(out), msg, units, row_count, disc)
     except Exception as exc:
         return ConversionResult(False, message=str(exc))
 

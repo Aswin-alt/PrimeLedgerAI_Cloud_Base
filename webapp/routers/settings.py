@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from webapp.database import get_db
-from webapp.models import ChartOfAccountRule, Location, User
+from webapp.models import ChartOfAccountRule, FileRecord, Location, User
 from webapp.security import client_ip, require
 from webapp.services.audit_service import write_audit
 from webapp.templating import templates_ctx as templates
@@ -75,6 +75,25 @@ def update_location(
         loc.is_active = is_active == "1"
         db.commit()
         write_audit(db, user, "settings.location_update", "location", loc_id, loc.name, client_ip(request))
+    return RedirectResponse("/settings/locations", status_code=303)
+
+
+@router.post("/locations/{loc_id}/delete")
+def delete_location(
+    loc_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require("settings.manage")),
+):
+    loc = db.query(Location).filter_by(id=loc_id).first()
+    if loc:
+        # Detach any file records that reference this location so the row can be
+        # removed without violating the foreign key (their location_name is kept).
+        for rec in db.query(FileRecord).filter_by(location_id=loc_id).all():
+            rec.location_id = None
+        write_audit(db, user, "settings.location_delete", "location", loc_id, loc.name, client_ip(request))
+        db.delete(loc)
+        db.commit()
     return RedirectResponse("/settings/locations", status_code=303)
 
 

@@ -92,15 +92,46 @@
   const values = {{ chart_values | tojson }};
   const statusLabels = {{ status_counts.keys() | list | tojson }};
   const statusValues = {{ status_counts.values() | list | tojson }};
-  new Chart(document.getElementById('filesChart'), {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Files', data: values, backgroundColor: '#2563eb' }] },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
-  });
-  new Chart(document.getElementById('statusChart'), {
-    type: 'doughnut',
-    data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: ['#6366f1','#f59e0b','#10b981','#ef4444','#94a3b8','#06b6d4'] }] },
-    options: { plugins: { legend: { position: 'bottom' } } }
-  });
+
+  function chartColors() {
+    const night = document.documentElement.getAttribute('data-theme') === 'night';
+    return {
+      bar: night ? '#e8a317' : '#0b1f3a',
+      tick: night ? '#94a3b8' : '#64748b',
+      grid: night ? 'rgba(30,58,95,0.6)' : 'rgba(226,232,240,0.9)',
+      doughnut: night
+        ? ['#e8a317', '#f5c85a', '#3b82f6', '#f87171', '#64748b', '#22d3ee']
+        : ['#0b1f3a', '#e8a317', '#143056', '#dc2626', '#94a3b8', '#0e7490'],
+    };
+  }
+
+  let filesChart, statusChart;
+  function buildCharts() {
+    const c = chartColors();
+    if (filesChart) filesChart.destroy();
+    if (statusChart) statusChart.destroy();
+    filesChart = new Chart(document.getElementById('filesChart'), {
+      type: 'bar',
+      data: { labels, datasets: [{ label: 'Files', data: values, backgroundColor: c.bar, borderRadius: 4 }] },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: c.tick }, grid: { color: c.grid } },
+          y: { beginAtZero: true, ticks: { precision: 0, color: c.tick }, grid: { color: c.grid } },
+        },
+      },
+    });
+    statusChart = new Chart(document.getElementById('statusChart'), {
+      type: 'doughnut',
+      data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: c.doughnut }] },
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: { color: c.tick } },
+        },
+      },
+    });
+  }
+  buildCharts();
+  window.addEventListener('pla-theme', buildCharts);
 </script>
 {% endblock %}
