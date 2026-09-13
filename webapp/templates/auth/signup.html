@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Sign in — {{ app_name }}{% endblock %}
+{% block title %}Sign up — {{ app_name }}{% endblock %}
 {% block public %}
 <div class="login-shell relative">
   <button type="button" class="btn btn-theme login-theme-toggle" title="Toggle day / night mode"
@@ -15,25 +15,37 @@
       <p class="mt-1 text-sm" style="color: rgba(255,255,255,0.75)">Cloud Accounting Platform</p>
     </div>
     <div class="login-card">
-      <h2 class="text-xl font-semibold mb-1" style="color: var(--text)">Sign in</h2>
-      <p class="text-sm theme-muted mb-6">Use your assigned credentials</p>
+      <h2 class="text-xl font-semibold mb-1" style="color: var(--text)">Create account</h2>
+      <p class="text-sm theme-muted mb-6">New accounts start as Viewer. An Admin can change your role later.</p>
       {% if error %}
       <div class="mb-4 rounded-lg flash-err px-3 py-2 text-sm">{{ error }}</div>
       {% endif %}
-      <form method="post" action="/login" class="space-y-4">
+      <form method="post" action="/signup" class="space-y-4">
         <div>
           <label class="block text-sm font-medium mb-1 theme-muted">Username</label>
-          <input name="username" class="input" required autofocus autocomplete="username" />
+          <input name="username" class="input" required autofocus autocomplete="username"
+                 minlength="3" value="{{ form.username if form else '' }}" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1 theme-muted">Email</label>
+          <input type="email" name="email" class="input" required autocomplete="email"
+                 value="{{ form.email if form else '' }}" />
         </div>
         <div>
           <label class="block text-sm font-medium mb-1 theme-muted">Password</label>
-          <input type="password" name="password" class="input" required autocomplete="current-password" />
+          <input type="password" name="password" class="input" required minlength="8"
+                 autocomplete="new-password" />
         </div>
-        <button type="submit" class="btn btn-primary w-full">Sign in</button>
+        <div>
+          <label class="block text-sm font-medium mb-1 theme-muted">Confirm password</label>
+          <input type="password" name="confirm_password" class="input" required minlength="8"
+                 autocomplete="new-password" />
+        </div>
+        <button type="submit" class="btn btn-primary w-full">Sign up</button>
       </form>
       <p class="text-sm theme-muted text-center mt-5">
-        Don’t have an account?
-        <a href="/signup" class="text-brand-link font-semibold">Sign up</a>
+        Already have an account?
+        <a href="/login" class="text-brand-link font-semibold">Sign in</a>
       </p>
     </div>
     <p class="text-center text-xs mt-6" style="color: rgba(255,255,255,0.55)">© PrimeLedgerAI · Secure session</p>
@@ -47,8 +59,6 @@
       var t = PLATheme.get();
       if (day) day.hidden = t === 'night';
       if (night) night.hidden = t !== 'night';
-      // Day-mode login title should use navy when shell is light
-      var titles = document.querySelectorAll('.login-shell h1, .login-shell p, .login-shell .text-center + p');
       var shellText = document.querySelectorAll('.login-shell > .w-full > .text-center h1, .login-shell > .w-full > .text-center p, .login-shell > .w-full > p');
       shellText.forEach(function (el) {
         if (t === 'day') {
