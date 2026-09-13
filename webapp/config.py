@@ -15,6 +15,9 @@ APP_VERSION = "2.1.0"
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-primeledger-dev-secret-key-32chars")
 SESSION_COOKIE = "pla_session"
 SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE", str(60 * 60 * 12)))
+# Set SESSION_HTTPS_ONLY=true in production behind HTTPS so the session cookie
+# is never sent over plain HTTP. Keep false for local HTTP development.
+SESSION_HTTPS_ONLY = os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true"
 
 # Default to local MySQL; override with DATABASE_URL for SQLite (sqlite:///./primeledger.db)
 DATABASE_URL = os.getenv(
