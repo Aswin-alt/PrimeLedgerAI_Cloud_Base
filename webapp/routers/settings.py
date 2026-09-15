@@ -13,6 +13,15 @@ from webapp.templating import templates_ctx as templates
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
+# Tool scopes shown in the Settings -> Chart of Accounts section, with labels.
+COA_TOOL_SCOPES = [
+    ("remittance", "Daily Remittance"),
+    ("daily_sales", "Daily Sales"),
+    ("payroll", "Payroll"),
+    ("invoice", "Weekly Denny's Invoice"),
+    ("hotel_revenue", "Marietta Hotel Revenue"),
+]
+
 
 @router.get("/locations", response_class=HTMLResponse)
 def locations_page(
@@ -21,14 +30,37 @@ def locations_page(
     user: User = Depends(require("settings.manage")),
 ):
     locations = db.query(Location).order_by(Location.code).all()
-    rules = (
+    all_rules = (
         db.query(ChartOfAccountRule)
         .order_by(ChartOfAccountRule.tool_scope, ChartOfAccountRule.source_contains)
         .all()
     )
+    # Group rules per tool scope for a grouped UI; keep known scopes ordered
+    # first, then any custom scopes that may exist.
+    labels = dict(COA_TOOL_SCOPES)
+    grouped: list[dict] = []
+    for scope, label in COA_TOOL_SCOPES:
+        grouped.append(
+            {"scope": scope, "label": label, "rules": [r for r in all_rules if r.tool_scope == scope]}
+        )
+    known = {scope for scope, _ in COA_TOOL_SCOPES}
+    for r in all_rules:
+        if r.tool_scope not in known:
+            existing = next((g for g in grouped if g["scope"] == r.tool_scope), None)
+            if existing:
+                existing["rules"].append(r)
+            else:
+                grouped.append({"scope": r.tool_scope, "label": r.tool_scope, "rules": [r]})
+                known.add(r.tool_scope)
     return templates.TemplateResponse(
         "settings/locations.html",
-        {"request": request, "user": user, "locations": locations, "rules": rules},
+        {
+            "request": request,
+            "user": user,
+            "locations": locations,
+            "coa_groups": grouped,
+            "coa_scopes": COA_TOOL_SCOPES,
+        },
     )
 
 

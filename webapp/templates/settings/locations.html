@@ -50,47 +50,54 @@
 
   <div class="space-y-4">
     <div class="card">
-      <h2 class="font-semibold mb-3">Add COA mapping rule</h2>
-      <form method="post" action="/settings/coa/create" class="space-y-3">
-        <div><label class="text-xs text-slate-600">Source description contains</label><input name="source_contains" class="input" required /></div>
-        <div><label class="text-xs text-slate-600">Account</label><input name="account" class="input" required /></div>
-        <div><label class="text-xs text-slate-600">Output description</label><input name="output_description" class="input" /></div>
-        <div class="grid grid-cols-2 gap-3">
+      <h2 class="font-semibold mb-1">Chart of accounts mapping</h2>
+      <p class="text-xs text-slate-500 mb-3">Accounts for every converter are driven by these rules. Each tool matches its own way: Remittance/Daily Sales match the line description, Payroll matches the position, Hotel matches a fixed slot, Invoice matches a description keyword.</p>
+    </div>
+
+    {% for group in coa_groups %}
+    <div class="card table-wrap" x-data="{ open: {{ 'true' if group.scope == 'remittance' else 'false' }} }">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold">{{ group.label }}
+          <span class="text-xs text-slate-500">({{ group.rules|length }})</span>
+        </h3>
+        <button type="button" class="text-xs text-primary-600" @click="open = !open" x-text="open ? 'Hide' : 'Show'">Show</button>
+      </div>
+
+      <div x-show="open" class="space-y-3">
+        <table class="data">
+          <thead><tr><th>{{ 'Match (description/position/slot/keyword)' }}</th><th>Account</th><th>Type</th><th></th></tr></thead>
+          <tbody>
+            {% for rule in group.rules %}
+            <tr>
+              <td>{{ rule.source_contains }}</td>
+              <td class="text-xs">{{ rule.account }}</td>
+              <td>{{ rule.entry_type }}</td>
+              <td>
+                <form method="post" action="/settings/coa/{{ rule.id }}/delete" onsubmit="return confirm('Delete rule?')">
+                  <button class="text-xs text-red-600" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-slate-500 text-sm py-4">No rules — the converter uses its built-in defaults.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <form method="post" action="/settings/coa/create" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end border-t pt-3">
+          <input type="hidden" name="tool_scope" value="{{ group.scope }}" />
+          <div class="md:col-span-2"><label class="text-xs text-slate-600">Match text</label><input name="source_contains" class="input" required /></div>
+          <div class="md:col-span-2"><label class="text-xs text-slate-600">Account</label><input name="account" class="input" required /></div>
           <div>
-            <label class="text-xs text-slate-600">Entry type</label>
+            <label class="text-xs text-slate-600">Type</label>
             <select name="entry_type" class="input"><option>DEBIT</option><option>CREDIT</option></select>
           </div>
-          <div>
-            <label class="text-xs text-slate-600">Tool scope</label>
-            <input name="tool_scope" class="input" value="remittance" />
-          </div>
-        </div>
-        <button class="btn btn-primary" type="submit">Add rule</button>
-      </form>
+          <input type="hidden" name="output_description" value="" />
+          <button class="btn btn-primary md:col-span-5" type="submit">Add rule to {{ group.label }}</button>
+        </form>
+      </div>
     </div>
-    <div class="card table-wrap">
-      <h2 class="font-semibold mb-3">Chart of accounts rules</h2>
-      <table class="data">
-        <thead><tr><th>Contains</th><th>Account</th><th>Type</th><th>Scope</th><th></th></tr></thead>
-        <tbody>
-          {% for rule in rules %}
-          <tr>
-            <td>{{ rule.source_contains }}</td>
-            <td class="text-xs">{{ rule.account }}</td>
-            <td>{{ rule.entry_type }}</td>
-            <td>{{ rule.tool_scope }}</td>
-            <td>
-              <form method="post" action="/settings/coa/{{ rule.id }}/delete" onsubmit="return confirm('Delete rule?')">
-                <button class="text-xs text-red-600" type="submit">Delete</button>
-              </form>
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="5" class="text-slate-500 text-sm py-4">No rules.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    {% endfor %}
   </div>
 </div>
 {% endblock %}

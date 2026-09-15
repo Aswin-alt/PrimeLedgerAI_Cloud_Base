@@ -78,13 +78,81 @@ LOCATIONS = [
     ("HOTEL", "Marietta Hotel", "Cash on Hand - Marietta Hotel", "FC Bank AC# 0606"),
 ]
 
-COA_RULES = [
-    ("Fees Credit Cards QR", "Commissions & fees  *:Credit Card Fee", "Fees Credit Cards QR", "DEBIT"),
-    ("Fees - Credit Cards", "Commissions & fees  *:Credit Card Fee", "Fees - Credit Cards", "DEBIT"),
-    ("Amx Fees", "Commissions & fees  *:Credit Card Fee", "Fees - Credit Cards", "DEBIT"),
-    ("Gross Credit Cards QR", "Credit Sales:QR Pay - Sales", "Gross Credit Cards QR", "CREDIT"),
-    ("Gross - Credit Cards", "Credit Sales:Credit card - Sales to Dennys", "Gross - Credit Cards", "CREDIT"),
-]
+# Chart-of-accounts rules per tool. Each tuple is
+# (source_contains, account, output_description, entry_type).
+# These mirror the converters' built-in defaults so they can be edited in
+# Settings without touching code; converters fall back to defaults if empty.
+COA_RULES_BY_TOOL = {
+    "remittance": [
+        ("Fees Credit Cards QR", "Commissions & fees  *:Credit Card Fee", "Fees Credit Cards QR", "DEBIT"),
+        ("Fees - Credit Cards", "Commissions & fees  *:Credit Card Fee", "Fees - Credit Cards", "DEBIT"),
+        ("Amx Fees", "Commissions & fees  *:Credit Card Fee", "Fees - Credit Cards", "DEBIT"),
+        ("Gross Credit Cards QR", "Credit Sales:QR Pay - Sales", "Gross Credit Cards QR", "CREDIT"),
+        ("Gross - Credit Cards", "Credit Sales:Credit card - Sales to Dennys", "Gross - Credit Cards", "CREDIT"),
+    ],
+    # Daily Sales: matched against each output line's Description column.
+    "daily_sales": [
+        ("Net Sales", "Sales A/C", "", "CREDIT"),
+        ("Total Sales Tax", "Tax Payable:Sales Tax Payable", "", "CREDIT"),
+        ("Total Discounts", "Food Discount A/c", "", "DEBIT"),
+        ("Credit Tips", "Tips Payable", "", "CREDIT"),
+        ("Cash Paid Outs", "Cash Paid Outs", "", "DEBIT"),
+        ("Auto-balance", "Daily Sales Variance", "", "CREDIT"),
+        ("Door", "Credit Sales:Doordash - Sales", "", "DEBIT"),
+        ("Uber", "Credit Sales:Uber Eats - Sales", "", "DEBIT"),
+        ("Grub", "Credit Sales:Grubhub - Sales", "", "DEBIT"),
+        ("QR Pay", "Credit Sales:QR Pay - Sales", "", "DEBIT"),
+        ("Master Card", "Credit Sales:Credit card - Sales to Dennys", "", "DEBIT"),
+        ("Visa", "Credit Sales:Credit card - Sales to Dennys", "", "DEBIT"),
+        ("Discover", "Credit Sales:Credit card - Sales to Dennys", "", "DEBIT"),
+        ("American Express", "Credit Sales:Credit card - Sales to Dennys", "", "DEBIT"),
+        ("Debit", "Credit Sales:Credit card - Sales to Dennys", "", "DEBIT"),
+        ("Gift Card", "Gift Card Payable", "", "DEBIT"),
+    ],
+    # Payroll: source_contains is the position (exact, case-insensitive).
+    "payroll": [
+        ("Cook", "Payroll:Salaries & wages:Cook & Prep Cook", "Cook", "DEBIT"),
+        ("Cook Trainee", "Payroll:Salaries & wages:Training", "Cook Trainee", "DEBIT"),
+        ("Diamond Shift Coord.", "Payroll:Salaries & wages:Hourly Managers", "Diamond Shift Coord.", "DEBIT"),
+        ("Diamond Shift Superv", "Payroll:Salaries & wages:Hourly Managers", "Diamond Shift Superv", "DEBIT"),
+        ("Host/Hostess", "Payroll:Salaries & wages:Host / Hostess", "Host/Hostess", "DEBIT"),
+        ("Host/Hostess Trainee", "Payroll:Salaries & wages:Training", "Host/Hostess Trainee", "DEBIT"),
+        ("Hourly RM", "Payroll:Salaries & wages:Hourly Managers", "Hourly RM", "DEBIT"),
+        ("Manager In Training", "Payroll:Salaries & wages:Training", "Manager In Training", "DEBIT"),
+        ("Meeting", "Payroll:Salaries & wages:Training", "Meeting", "DEBIT"),
+        ("Premium Server", "Payroll:Salaries & wages:Server", "Premium Server", "DEBIT"),
+        ("Server", "Payroll:Salaries & wages:Server", "Server", "DEBIT"),
+        ("Server Trainee", "Payroll:Salaries & wages:Training", "Server Trainee", "DEBIT"),
+        ("Service Assistant", "Payroll:Salaries & wages:Service Assistant", "Service Assistant", "DEBIT"),
+        ("Full Time Cook", "Payroll:Salaries & wages:Cook & Prep Cook", "Full Time Cook", "DEBIT"),
+        ("Server-Min Wage", "Payroll:Salaries & wages:Server", "Server-Min Wage", "DEBIT"),
+        ("Bartender", "Payroll:Salaries & wages:Bartender", "Bartender", "DEBIT"),
+        ("Service Ast. Trainee", "Payroll:Salaries & wages:Training", "Service Ast. Trainee", "DEBIT"),
+        ("Service Spc Trainee", "Payroll:Salaries & wages:Training", "Service Spc Trainee", "DEBIT"),
+        ("Shift Manager", "Payroll:Salaries & wages:Hourly Managers", "Shift Manager", "DEBIT"),
+        ("Cashier", "Payroll:Salaries & wages:Service Assistant", "Cashier", "DEBIT"),
+        ("Payroll Total", "Payroll Payable", "Payroll Total", "CREDIT"),
+    ],
+    # Hotel Revenue: source_contains is a fixed slot key.
+    "hotel_revenue": [
+        ("Room Revenue", "Room Revenue", "", "CREDIT"),
+        ("Bed Tax", "Tax Payable:Bed Tax", "", "CREDIT"),
+        ("Sales Tax", "Tax Payable:Sales tax Payable - Marietta Hotel", "", "CREDIT"),
+        ("Bank", "FC Bank AC# 0606", "", "DEBIT"),
+        ("Guest Ledger", "Front Desk-Guest Ledger", "", "DEBIT"),
+    ],
+    # Invoice: keyword rules for auto-account suggestions, plus two special keys.
+    "invoice": [
+        ("royalty", "Marketing & Franchise Fees:Franchise Royalties", "", "DEBIT"),
+        ("advertising", "Marketing & Franchise Fees:Marketing Fees", "", "DEBIT"),
+        ("additional bbf investment", "Marketing & Franchise Fees:BBF Investment Addtl", "", "DEBIT"),
+        ("bbf investment", "Marketing & Franchise Fees:BBF Investment Addtl", "", "DEBIT"),
+        ("help desk support", "Marketing & Franchise Fees:Technology Fee", "", "DEBIT"),
+        ("pilot / flying j percentage rent", "Occupancy:Rent", "", "DEBIT"),
+        ("Vendor Credit Account", "Denny's Inc", "Special: journal credit line", "CREDIT"),
+        ("Invoice Tax Account", "Marketing & Franchise Fees:Technology Fee", "Special: page tax line", "DEBIT"),
+    ],
+}
 
 
 def seed() -> None:
@@ -156,18 +224,19 @@ def seed() -> None:
                     )
                 )
 
-        # Chart of accounts sample rules
-        if db.query(ChartOfAccountRule).count() == 0:
-            for contains, account, desc, entry in COA_RULES:
-                db.add(
-                    ChartOfAccountRule(
-                        source_contains=contains,
-                        account=account,
-                        output_description=desc,
-                        entry_type=entry,
-                        tool_scope="remittance",
+        # Chart of accounts rules, seeded per tool scope (idempotent per scope).
+        for scope, rules in COA_RULES_BY_TOOL.items():
+            if db.query(ChartOfAccountRule).filter_by(tool_scope=scope).count() == 0:
+                for contains, account, desc, entry in rules:
+                    db.add(
+                        ChartOfAccountRule(
+                            source_contains=contains,
+                            account=account,
+                            output_description=desc,
+                            entry_type=entry,
+                            tool_scope=scope,
+                        )
                     )
-                )
 
         db.commit()
         print("Seed complete.")

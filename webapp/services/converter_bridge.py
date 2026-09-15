@@ -65,6 +65,68 @@ def _canonical_location(text: str, by_code: dict[str, str], by_name: dict[str, s
     return raw
 
 
+def coa_rules_for(tool_scope: str) -> list[tuple[str, str, str, str]]:
+    """Return active COA rules for a tool from Settings.
+
+    Each rule is (source_contains, account, output_description, entry_type).
+    Returns an empty list if none are configured (callers fall back to defaults).
+    """
+    from webapp.database import SessionLocal
+    from webapp.models import ChartOfAccountRule
+
+    db = SessionLocal()
+    try:
+        rules = (
+            db.query(ChartOfAccountRule)
+            .filter_by(tool_scope=tool_scope, is_active=True)
+            .all()
+        )
+        return [
+            (r.source_contains, r.account, r.output_description or "", r.entry_type or "DEBIT")
+            for r in rules
+        ]
+    finally:
+        db.close()
+
+
+def normalize_account_by_description(csv_path, tool_scope: str) -> None:
+    """Remap the 'Account' column of a generated CSV using Settings COA rules.
+
+    A row's account is replaced with a rule's account when the rule's
+    source_contains text appears in the row's Description (most specific rule
+    wins). Rows that match no rule keep their converter-produced account, so
+    this is a safe overlay that falls back to defaults.
+    """
+    rules = coa_rules_for(tool_scope)
+    if not rules:
+        return
+    path = Path(csv_path)
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.reader(handle))
+    if not rows:
+        return
+    header = [h.strip().lower() for h in rows[0]]
+    if "account" not in header or "description" not in header:
+        return
+    acct_idx = header.index("account")
+    desc_idx = header.index("description")
+    ordered = sorted(rules, key=lambda r: len(r[0]), reverse=True)
+    for row in rows[1:]:
+        if desc_idx >= len(row) or acct_idx >= len(row):
+            continue
+        description = (row[desc_idx] or "").casefold()
+        for source_contains, account, _desc, _entry in ordered:
+            key = (source_contains or "").strip().casefold()
+            if key and key in description:
+                row[acct_idx] = account
+                break
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerows(rows)
+
+
 def normalize_location_column(csv_path) -> None:
     """Rewrite the 'Location' column of a generated CSV using Settings names.
 
@@ -127,6 +189,7 @@ def run_daily_sales(input_path: Path, output_path: Optional[Path] = None) -> Con
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         journals, lines = mod.convert(str(input_path), str(out))
+        normalize_account_by_description(out, "daily_sales")
         normalize_location_column(out)
         return ConversionResult(True, str(out), f"Created {journals} journals / {lines} lines", journals, lines)
     except Exception as exc:
@@ -251,15 +314,32 @@ def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> Convers
         # Location names come from the editable Settings -> Locations table.
         by_code, by_name = _settings_location_index()
 
-        # Reuse the legacy parsing + account mapping so the CSV matches the
-        # desktop journal exactly (only the output format + location differ).
+        # Account + description per position come from the Settings COA table
+        # (tool_scope="payroll"), falling back to the legacy POSITION_MAPPING.
+        position_map: dict[str, tuple[str, str]] = {}
+        payable_account = "Payroll Payable"
+        for source_contains, account, out_desc, _entry in coa_rules_for("payroll"):
+            key = (source_contains or "").strip()
+            if key.casefold() == "payroll payable":
+                payable_account = account
+                continue
+            position_map[key.casefold()] = (account, out_desc or key)
+        for position, (account, description) in mod.POSITION_MAPPING.items():
+            position_map.setdefault(position.casefold(), (account, description))
+
+        def resolve_position(position: str) -> tuple[str, str]:
+            return position_map.get(
+                position.casefold(),
+                (f"Payroll:Salaries & wages:{position}", position),
+            )
+
+        # Reuse the legacy parsing so the CSV matches the desktop journal
+        # (only the output format, location, and COA source differ).
         grouped: dict = defaultdict(Decimal)
         with Path(input_path).open(newline="", encoding="utf-8-sig") as fh:
             for row in csv.DictReader(fh):
                 position = row["Position"].strip()
-                account, description = mod.POSITION_MAPPING.get(
-                    position, (f"Payroll:Salaries & wages:{position}", position)
-                )
+                account, description = resolve_position(position)
                 location = _canonical_location(
                     mod.location_name(row["Store"]), by_code, by_name
                 )
@@ -279,7 +359,7 @@ def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> Convers
             for account, description, amount in sorted(by_location[location]):
                 rows.append([journal_no, date_text, account, f"{amount:.2f}", "", description, "", location])
                 location_total += amount
-            rows.append([journal_no, date_text, "Payroll Payable", "", f"{location_total:.2f}", "Payroll Total", "", location])
+            rows.append([journal_no, date_text, payable_account, "", f"{location_total:.2f}", "Payroll Total", "", location])
 
         out = output_path or (OUTPUT_DIR / f"Payroll_Journal_{journal_no}.csv")
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -299,16 +379,37 @@ def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> Convers
         return ConversionResult(False, message=str(exc))
 
 
+_HOTEL_ACCOUNT_ATTRS = {
+    "room revenue": "ROOM_REVENUE_ACCOUNT",
+    "bed tax": "BED_TAX_ACCOUNT",
+    "sales tax": "SALES_TAX_ACCOUNT",
+    "bank": "BANK_ACCOUNT",
+    "guest ledger": "GUEST_LEDGER_ACCOUNT",
+}
+
+
 def run_hotel_revenue(input_path: Path, output_path: Optional[Path] = None, location: str = "Marietta Hotel") -> ConversionResult:
     mod = _load_module("hotel_revenue", "Hotel Revenue/Marietta_hotel_revenue_daily.py")
     out = output_path or (OUTPUT_DIR / f"{input_path.stem}_QuickBooks.csv")
     out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Override the module's fixed account constants from Settings for this run,
+    # then restore them so the module defaults remain the fallback.
+    saved: dict[str, str] = {}
+    for source_contains, account, _desc, _entry in coa_rules_for("hotel_revenue"):
+        attr = _HOTEL_ACCOUNT_ATTRS.get((source_contains or "").strip().casefold())
+        if attr and account:
+            saved[attr] = getattr(mod, attr)
+            setattr(mod, attr, account)
     try:
         actual = mod.convert_with_locked_file_fallback(Path(input_path), Path(out), location)
         normalize_location_column(actual)
         return ConversionResult(True, str(actual), f"Hotel revenue CSV: {Path(actual).name}")
     except Exception as exc:
         return ConversionResult(False, message=str(exc))
+    finally:
+        for attr, value in saved.items():
+            setattr(mod, attr, value)
 
 
 def run_sales_tax(input_path: Path, output_path: Optional[Path] = None) -> ConversionResult:
@@ -323,13 +424,49 @@ def run_sales_tax(input_path: Path, output_path: Optional[Path] = None) -> Conve
         return ConversionResult(False, message=str(exc))
 
 
+_INVOICE_SPECIAL_KEYS = {"vendor credit account", "invoice tax account"}
+
+
+def _apply_invoice_rules(mod: ModuleType) -> None:
+    """Override the invoice module's keyword->account rules from Settings.
+
+    Leaves the module defaults in place if Settings has no invoice rules.
+    """
+    keyword_rules = []
+    for source_contains, account, _desc, _entry in coa_rules_for("invoice"):
+        key = (source_contains or "").strip()
+        if not key or not account or key.casefold() in _INVOICE_SPECIAL_KEYS:
+            continue
+        keyword_rules.append((key.casefold(), account, True))
+    if keyword_rules:
+        mod.DEFAULT_RULES = keyword_rules
+
+
+def invoice_special_accounts() -> tuple[str, str]:
+    """Return (credit_account, tax_account) for invoices from Settings."""
+    credit_account = "Denny's Inc"
+    tax_account = "Marketing & Franchise Fees:Technology Fee"
+    for source_contains, account, _desc, _entry in coa_rules_for("invoice"):
+        key = (source_contains or "").strip().casefold()
+        if not account:
+            continue
+        if key == "vendor credit account":
+            credit_account = account
+        elif key == "invoice tax account":
+            tax_account = account
+    return credit_account, tax_account
+
+
 def parse_invoice_pdf(pdf_path: Path) -> tuple[list[Any], dict[str, str]]:
     mod = _load_module("invoice", "Dennys Invoice/Dennys_weekly_invoice_DFO.py")
+    _apply_invoice_rules(mod)
     return mod.parse_pdf(str(pdf_path))
 
 
 def invoice_module() -> ModuleType:
-    return _load_module("invoice", "Dennys Invoice/Dennys_weekly_invoice_DFO.py")
+    mod = _load_module("invoice", "Dennys Invoice/Dennys_weekly_invoice_DFO.py")
+    _apply_invoice_rules(mod)
+    return mod
 
 
 TOOLS = {

@@ -296,8 +296,7 @@ async def invoice_export(
     import csv as csv_mod
 
     column_mapping = mod.load_column_mapping()
-    credit_account = "Denny's Inc"
-    tax_account = "Marketing & Franchise Fees:Technology Fee"
+    credit_account, tax_account = bridge.invoice_special_accounts()
     CSV_COLUMNS = mod.CSV_COLUMNS
 
     output_rows = []
