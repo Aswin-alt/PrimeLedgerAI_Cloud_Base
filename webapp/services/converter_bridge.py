@@ -1,7 +1,9 @@
 """Bridge that loads legacy converter scripts via importlib (no edits to them)."""
 from __future__ import annotations
 
+import csv
 import importlib.util
+import re
 import sys
 import traceback
 from dataclasses import dataclass
@@ -12,6 +14,84 @@ from typing import Any, Optional
 from webapp.config import LEGACY_ROOT, OUTPUT_DIR
 
 _module_cache: dict[str, ModuleType] = {}
+
+
+def _settings_location_index() -> tuple[dict[str, str], dict[str, str]]:
+    """Return (by_code, by_name) canonical location names from Settings.
+
+    by_code maps a short code (e.g. ``5166``) to its canonical name; by_name
+    maps a lowercased name (e.g. ``marietta hotel``) to its canonical name.
+    """
+    from webapp.database import SessionLocal
+    from webapp.models import Location
+
+    by_code: dict[str, str] = {}
+    by_name: dict[str, str] = {}
+    db = SessionLocal()
+    try:
+        for loc in db.query(Location).all():
+            name = (loc.name or "").strip()
+            if not name:
+                continue
+            code = (loc.code or "").strip()
+            if code:
+                by_code[code] = name
+            by_name[name.casefold()] = name
+    finally:
+        db.close()
+    return by_code, by_name
+
+
+def _canonical_location(text: str, by_code: dict[str, str], by_name: dict[str, str]) -> str:
+    """Resolve a single location cell to the Settings name when possible.
+
+    Matches on the leading numeric code first (handles 6-digit unit numbers vs
+    4-digit codes via suffix matching), then falls back to a by-name match
+    (e.g. "Marietta Hotel"). Returns the original text if nothing matches.
+    """
+    raw = (text or "").strip()
+    if not raw:
+        return text
+    match = re.match(r"\s*(\d{3,})", raw)
+    if match:
+        digits = match.group(1)
+        if digits in by_code:
+            return by_code[digits]
+        for code, name in by_code.items():
+            if digits.endswith(code) or code.endswith(digits):
+                return name
+    if raw.casefold() in by_name:
+        return by_name[raw.casefold()]
+    return raw
+
+
+def normalize_location_column(csv_path) -> None:
+    """Rewrite the 'Location' column of a generated CSV using Settings names.
+
+    Safe no-op if the file is missing, has no Location column, or Settings has
+    no locations configured. This makes every converter's output location names
+    driven by the editable Settings -> Locations table.
+    """
+    path = Path(csv_path)
+    if not path.exists():
+        return
+    by_code, by_name = _settings_location_index()
+    if not by_code and not by_name:
+        return
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.reader(handle))
+    if not rows:
+        return
+    header = [h.strip().lower() for h in rows[0]]
+    if "location" not in header:
+        return
+    loc_idx = header.index("location")
+    for row in rows[1:]:
+        if loc_idx < len(row):
+            row[loc_idx] = _canonical_location(row[loc_idx], by_code, by_name)
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerows(rows)
 
 
 @dataclass
@@ -47,6 +127,7 @@ def run_daily_sales(input_path: Path, output_path: Optional[Path] = None) -> Con
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         journals, lines = mod.convert(str(input_path), str(out))
+        normalize_location_column(out)
         return ConversionResult(True, str(out), f"Created {journals} journals / {lines} lines", journals, lines)
     except Exception as exc:
         return ConversionResult(False, message=str(exc))
@@ -137,6 +218,7 @@ def run_daily_remittance(
         groups = mod.read_remittance(str(input_path))
         rows, warnings = mod.build_journal(groups, locations, banks, coa_rules)
         mod.write_csv(rows, str(out))
+        normalize_location_column(out)
 
         debits = sum(float(row[3] or 0) for row in rows)
         credits = sum(float(row[4] or 0) for row in rows)
@@ -166,8 +248,11 @@ def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> Convers
         journal_no = f"Pay{entry_date:%m%d}"
         date_text = entry_date.strftime("%m/%d/%Y")
 
+        # Location names come from the editable Settings -> Locations table.
+        by_code, by_name = _settings_location_index()
+
         # Reuse the legacy parsing + account mapping so the CSV matches the
-        # desktop Excel journal exactly (only the output format differs).
+        # desktop journal exactly (only the output format + location differ).
         grouped: dict = defaultdict(Decimal)
         with Path(input_path).open(newline="", encoding="utf-8-sig") as fh:
             for row in csv.DictReader(fh):
@@ -175,9 +260,10 @@ def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> Convers
                 account, description = mod.POSITION_MAPPING.get(
                     position, (f"Payroll:Salaries & wages:{position}", position)
                 )
-                grouped[(mod.location_name(row["Store"]), account, description)] += mod.money(
-                    row["Total Wages"]
+                location = _canonical_location(
+                    mod.location_name(row["Store"]), by_code, by_name
                 )
+                grouped[(location, account, description)] += mod.money(row["Total Wages"])
 
         by_location: dict = defaultdict(list)
         for (location, account, description), amount in grouped.items():
@@ -219,6 +305,7 @@ def run_hotel_revenue(input_path: Path, output_path: Optional[Path] = None, loca
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
         actual = mod.convert_with_locked_file_fallback(Path(input_path), Path(out), location)
+        normalize_location_column(actual)
         return ConversionResult(True, str(actual), f"Hotel revenue CSV: {Path(actual).name}")
     except Exception as exc:
         return ConversionResult(False, message=str(exc))

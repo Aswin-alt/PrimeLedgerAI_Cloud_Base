@@ -375,6 +375,8 @@ async def invoice_export(
         writer.writerow(CSV_COLUMNS)
         writer.writerows(output_rows)
 
+    bridge.normalize_location_column(out)
+
     job = ConversionJob(
         tool_name="invoice",
         user_id=user.id,
