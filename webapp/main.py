@@ -14,6 +14,7 @@ from webapp.config import (
     OUTPUT_DIR,
     SECRET_KEY,
     SESSION_COOKIE,
+    SESSION_HTTPS_ONLY,
     SESSION_MAX_AGE,
     UPLOAD_DIR,
 )
@@ -39,6 +40,7 @@ app.add_middleware(
     session_cookie=SESSION_COOKIE,
     max_age=SESSION_MAX_AGE,
     same_site="lax",
+    https_only=SESSION_HTTPS_ONLY,
 )
 
 static_dir = Path(__file__).parent / "static"

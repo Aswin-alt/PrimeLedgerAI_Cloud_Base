@@ -72,8 +72,8 @@ LOCATIONS = [
     ("5168", "5168-Catlettsburg KY", "Cash on hand - Catlettsburg KY", "FCB - Cattletsburgh ac# 7079"),
     ("5169", "5169-Columbus OH", "Cash on Hand - Columbus OH", "FCB - Columbus ac# 7037"),
     ("7401", "7401-Youngstown", "Cash on Hand - Youngstown", "Marietta Restaurant llc (1842) - 1"),
-    ("8829", "8829", "Cash on Hand - 8829", ""),
-    ("9690", "9690-Marietta Rest", "Cash on Hand - Marietta", "Marietta Restaurant llc (1842) - 1"),
+    ("8829", "8829-Columbus OH", "Cash on Hand - 8829", "FCB - Columbus ac# 7037"),
+    ("9690", "9690 - Marietta Rest", "Cash on Hand - Marietta", "Marietta Restaurant llc (1842) - 1"),
     ("9697", "9697-Findley", "Cash on Hand - Findlay", "FC Bank Ac#0167 - Nights and Bites"),
     ("HOTEL", "Marietta Hotel", "Cash on Hand - Marietta Hotel", "FC Bank AC# 0606"),
 ]

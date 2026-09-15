@@ -126,7 +126,7 @@ async def run_converter(
         elif tool_key == "sales_tax":
             result = runner(dest, out_path.with_suffix(".pdf"))
         elif tool_key == "payroll":
-            result = runner(dest, out_path.with_suffix(".xlsx"))
+            result = runner(dest, out_path.with_suffix(".csv"))
         else:
             result = runner(dest, out_path.with_suffix(".csv"))
     except Exception as exc:

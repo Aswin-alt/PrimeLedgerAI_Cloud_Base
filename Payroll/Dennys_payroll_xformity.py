@@ -1,8 +1,7 @@
-"""Convert a consolidated payroll CSV to a QuickBooks payroll journal Excel file.
+"""Convert a consolidated payroll CSV to a QuickBooks payroll journal CSV file.
 
 Run:  python payroll_to_quickbooks.py
 Then select the payroll CSV. The output is saved beside the input file.
-Requires: pip install openpyxl
 """
 import csv
 import re
@@ -11,9 +10,6 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from tkinter import Tk, filedialog, messagebox
-
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
 
 
 POSITION_MAPPING = {
@@ -53,6 +49,7 @@ def location_name(store):
 def convert(input_path):
     entry_date = payroll_date(input_path)
     journal_no = f"Pay{entry_date:%m%d}"
+    date_text = entry_date.strftime("%m/%d/%Y")
     grouped = defaultdict(Decimal)
     with input_path.open(newline="", encoding="utf-8-sig") as fh:
         for row in csv.DictReader(fh):
@@ -60,39 +57,25 @@ def convert(input_path):
             account, description = POSITION_MAPPING.get(position, (f"Payroll:Salaries & wages:{position}", position))
             grouped[(location_name(row["Store"]), account, description)] += money(row["Total Wages"])
 
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Journal Entry"
     headers = ["Journal No.", "Journal Date", "Account", "Debits", "Credits", "Description", "Name", "Location"]
-    ws.append(headers)
-    green, white = "177E75", "FFFFFF"
-    for cell in ws[1]:
-        cell.fill = PatternFill("solid", fgColor=green)
-        cell.font = Font(bold=True, color=white)
-        cell.alignment = Alignment(horizontal="center")
 
     by_location = defaultdict(list)
     for (location, account, description), amount in grouped.items():
         by_location[location].append((account, description, amount))
+
+    rows = []
     for location in sorted(by_location):
         location_total = Decimal("0")
         for account, description, amount in sorted(by_location[location]):
-            ws.append([journal_no, entry_date, account, float(amount), None, description, "", location])
+            rows.append([journal_no, date_text, account, f"{amount:.2f}", "", description, "", location])
             location_total += amount
-        ws.append([journal_no, entry_date, "Payroll Payable", None, float(location_total), "Payroll Total", "", location])
+        rows.append([journal_no, date_text, "Payroll Payable", "", f"{location_total:.2f}", "Payroll Total", "", location])
 
-    widths = [16, 14, 48, 14, 14, 28, 16, 28]
-    for i, width in enumerate(widths, 1):
-        ws.column_dimensions[chr(64 + i)].width = width
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
-    for row in ws.iter_rows(min_row=2):
-        row[1].number_format = "mm/dd/yyyy"
-        row[3].number_format = '$#,##0.00'
-        row[4].number_format = '$#,##0.00'
-
-    out = input_path.with_name(f"Payroll_Journal_{journal_no}.xlsx")
-    wb.save(out)
+    out = input_path.with_name(f"Payroll_Journal_{journal_no}.csv")
+    with out.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(headers)
+        writer.writerows(rows)
     return out
 
 
