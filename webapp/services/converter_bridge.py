@@ -157,15 +157,58 @@ def run_daily_remittance(
 
 def run_payroll(input_path: Path, output_path: Optional[Path] = None) -> ConversionResult:
     mod = _load_module("payroll", "Payroll/Dennys_payroll_xformity.py")
+    import csv
+    from collections import defaultdict
+    from decimal import Decimal
+
     try:
-        result = mod.convert(Path(input_path))
-        # Legacy writes next to input; optionally copy/move
-        out = Path(result)
-        if output_path and out != output_path:
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_bytes(out.read_bytes())
-            out = output_path
-        return ConversionResult(True, str(out), f"Payroll journal created: {out.name}")
+        entry_date = mod.payroll_date(Path(input_path))
+        journal_no = f"Pay{entry_date:%m%d}"
+        date_text = entry_date.strftime("%m/%d/%Y")
+
+        # Reuse the legacy parsing + account mapping so the CSV matches the
+        # desktop Excel journal exactly (only the output format differs).
+        grouped: dict = defaultdict(Decimal)
+        with Path(input_path).open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                position = row["Position"].strip()
+                account, description = mod.POSITION_MAPPING.get(
+                    position, (f"Payroll:Salaries & wages:{position}", position)
+                )
+                grouped[(mod.location_name(row["Store"]), account, description)] += mod.money(
+                    row["Total Wages"]
+                )
+
+        by_location: dict = defaultdict(list)
+        for (location, account, description), amount in grouped.items():
+            by_location[location].append((account, description, amount))
+
+        headers = [
+            "Journal No.", "Journal Date", "Account", "Debits", "Credits",
+            "Description", "Name", "Location",
+        ]
+        rows: list[list] = []
+        for location in sorted(by_location):
+            location_total = Decimal("0")
+            for account, description, amount in sorted(by_location[location]):
+                rows.append([journal_no, date_text, account, f"{amount:.2f}", "", description, "", location])
+                location_total += amount
+            rows.append([journal_no, date_text, "Payroll Payable", "", f"{location_total:.2f}", "Payroll Total", "", location])
+
+        out = output_path or (OUTPUT_DIR / f"Payroll_Journal_{journal_no}.csv")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(headers)
+            writer.writerows(rows)
+
+        return ConversionResult(
+            True,
+            str(out),
+            f"Payroll journal created: {out.name} ({len(by_location)} locations / {len(rows)} lines)",
+            len(by_location),
+            len(rows),
+        )
     except Exception as exc:
         return ConversionResult(False, message=str(exc))
 
